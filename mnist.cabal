@@ -1,0 +1,21 @@
+name:                bytestring-encodings
+version:             0.1.0.0
+license:             MIT
+license-file:        LICENSE
+author:              chessai
+maintainer:          chessai1996@gmail.com
+build-type:          Simple
+extra-source-files:  ChangeLog.md
+cabal-version:       >=1.10
+
+library 
+  exposed-modules:
+      Mnist 
+  hs-source-dirs: src 
+  build-depends:
+      base >=4.10 && <4.11
+    , bytestring 
+    , random 
+    , zlib 
+  default-language:    Haskell2010
+  ghc-options: -Wall -Werror
