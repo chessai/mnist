@@ -5,10 +5,12 @@ import qualified Data.ByteString.Lazy as BS
 
 import Control.Monad
 import Data.Functor
+import Data.Int (Int64)
 import Data.Ord
 import Data.List
 import System.Random
 
+gauss :: Double -> IO Double
 gauss scale = do
   x1 <- randomIO
   x2 <- randomIO
@@ -18,20 +20,28 @@ newBrain :: [Int] -> IO [([Double], [[Double]])]
 newBrain szs@(_:ts) = zip (flip replicate 1 <$> ts) <$>
   zipWithM (\m n -> replicateM n $ replicateM m $ gauss 0.01) szs ts
 
+relu :: Double -> Double
 relu = max 0
+
+relu' :: (Ord a, Num a, Num b) => a -> b
 relu' x | x < 0      = 0
         | otherwise  = 1
 
+zLayer :: Num a => [a] -> ([a], [[a]]) -> [a]
 zLayer as (bs, wvs) = zipWith (+) bs $ sum . zipWith (*) as <$> wvs
 
+feed :: [Double] -> [([Double], [[Double]])] -> [Double]
 feed = foldl' (((relu <$>) . ) . zLayer)
 
+revaz :: Foldable t => [Double] -> t ([Double], [[Double]]) -> ([[Double]], [[Double]])
 revaz xs = foldl' (\(avs@(av:_), zs) (bs, wms) -> let
   zs' = zLayer av (bs, wms) in ((relu <$> zs'):avs, zs':zs)) ([xs], [])
 
+dCost :: (Num a, Ord a) => a -> a -> a
 dCost a y | y == 1 && a >= y = 0
           | otherwise        = a - y
 
+deltas :: [Double] -> [Double] -> [([Double], [[Double]])] -> ([[Double]], [[Double]])
 deltas xv yv layers = let
   (avs@(av:_), zv:zvs) = revaz xv layers
   delta0 = zipWith (*) (zipWith dCost av yv) (relu' <$> zv)
@@ -40,10 +50,13 @@ deltas xv yv layers = let
     f (wm:wms) (zv:zvs) dvs@(dv:_) = f wms zvs $ (:dvs) $
       zipWith (*) [sum $ zipWith (*) row dv | row <- wm] (relu' <$> zv)
 
+eta :: Double
 eta = 0.002
 
+descend :: [Double] -> [Double] -> [Double]
 descend av dv = zipWith (-) av ((eta *) <$> dv)
 
+learn :: [Double] -> [Double] -> [([Double], [[Double]])] -> [([Double], [[Double]])]
 learn xv yv layers = let (avs, dvs) = deltas xv yv layers
   in zip (zipWith descend (fst <$> layers) dvs) $
     zipWith3 (\wvs av dv -> zipWith (\wv d -> descend wv ((d*) <$> av)) wvs dv)
@@ -56,6 +69,7 @@ getY     s n = fromIntegral . fromEnum . (getLabel s n ==) <$> [0..9]
 
 render n = let s = " .:oO@" in s !! (fromIntegral n * length s `div` 256)
 
+main :: IO ()
 main = do
   [trainI, trainL, testI, testL] <- mapM ((decompress  <$>) . BS.readFile)
     [ "train/train-images-idx3-ubyte.gz"
